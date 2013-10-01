@@ -129,7 +129,7 @@ static NSString *newSHA1String(const char *bytes, size_t length) {
 
 @implementation NSData (SRWebSocket)
 
-- (NSString *)stringBySHA1ThenBase64Encoding;
+- (NSString *)stringBySHA1ThenBase64Encoding
 {
     return newSHA1String(self.bytes, self.length);
 }
@@ -139,7 +139,7 @@ static NSString *newSHA1String(const char *bytes, size_t length) {
 
 @implementation NSString (SRWebSocket)
 
-- (NSString *)stringBySHA1ThenBase64Encoding;
+- (NSString *)stringBySHA1ThenBase64Encoding
 {
     return newSHA1String(self.UTF8String, self.length);
 }
@@ -216,10 +216,10 @@ typedef void (^data_callback)(SRWebSocket *webSocket,  NSData *data);
     NSOutputStream *_outputStream;
    
     NSMutableData *_readBuffer;
-    NSInteger _readBufferOffset;
+    NSUInteger _readBufferOffset;
  
     NSMutableData *_outputBuffer;
-    NSInteger _outputBufferOffset;
+    NSUInteger _outputBufferOffset;
 
     uint8_t _currentFrameOpcode;
     size_t _currentFrameCount;
@@ -265,12 +265,12 @@ typedef void (^data_callback)(SRWebSocket *webSocket,  NSData *data);
 
 static __strong NSData *CRLFCRLF;
 
-+ (void)initialize;
++ (void)initialize
 {
     CRLFCRLF = [[NSData alloc] initWithBytes:"\r\n\r\n" length:4];
 }
 
-- (id)initWithURLRequest:(NSURLRequest *)request protocols:(NSArray *)protocols;
+- (id)initWithURLRequest:(NSURLRequest *)request protocols:(NSArray *)protocols
 {
     self = [super init];
     if (self) {
@@ -293,23 +293,23 @@ static __strong NSData *CRLFCRLF;
     return self;
 }
 
-- (id)initWithURLRequest:(NSURLRequest *)request;
+- (id)initWithURLRequest:(NSURLRequest *)request
 {
     return [self initWithURLRequest:request protocols:nil];
 }
 
-- (id)initWithURL:(NSURL *)url;
+- (id)initWithURL:(NSURL *)url
 {
     return [self initWithURL:url protocols:nil];
 }
 
-- (id)initWithURL:(NSURL *)url protocols:(NSArray *)protocols;
+- (id)initWithURL:(NSURL *)url protocols:(NSArray *)protocols
 {
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];    
     return [self initWithURLRequest:request protocols:protocols];
 }
 
-- (void)_SR_commonInit;
+- (void)_SR_commonInit
 {
     _readyState = SR_CONNECTING;
 
@@ -358,7 +358,7 @@ static __strong NSData *CRLFCRLF;
 
 #ifndef NDEBUG
 
-- (void)setReadyState:(SRReadyState)aReadyState;
+- (void)setReadyState:(SRReadyState)aReadyState
 {
     [self willChangeValueForKey:@"readyState"];
     assert(aReadyState > _readyState);
@@ -368,7 +368,7 @@ static __strong NSData *CRLFCRLF;
 
 #endif
 
-- (void)open;
+- (void)open
 {
     assert(_url);
     NSAssert(_readyState == SR_CONNECTING && _inputStream == nil && _outputStream == nil, @"Cannot call -(void)open on SRWebSocket more than once");
@@ -389,7 +389,7 @@ static __strong NSData *CRLFCRLF;
 
 
 
-- (BOOL)_checkHandshake:(CFHTTPMessageRef)httpMessage;
+- (BOOL)_checkHandshake:(CFHTTPMessageRef)httpMessage
 {
     NSString *acceptHeader = CFBridgingRelease(CFHTTPMessageCopyHeaderFieldValue(httpMessage, CFSTR("Sec-WebSocket-Accept")));
 
@@ -403,7 +403,7 @@ static __strong NSData *CRLFCRLF;
     return [acceptHeader isEqualToString:expectedAccept];
 }
 
-- (void)_HTTPHeadersDidFinish;
+- (void)_HTTPHeadersDidFinish
 {
     NSInteger responseCode = CFHTTPMessageGetResponseStatusCode(_receivedHTTPHeaders);
     
@@ -444,7 +444,7 @@ static __strong NSData *CRLFCRLF;
 }
 
 
-- (void)_readHTTPHeader;
+- (void)_readHTTPHeader
 {
     if (_receivedHTTPHeaders == NULL) {
         _receivedHTTPHeaders = CFHTTPMessageCreateEmpty(NULL, NO);
@@ -498,7 +498,7 @@ static __strong NSData *CRLFCRLF;
     [self _readHTTPHeader];
 }
 
-- (void)_connectToHost:(NSString *)host port:(NSInteger)port;
+- (void)_connectToHost:(NSString *)host port:(NSInteger)port
 {    
     CFReadStreamRef readStream = NULL;
     CFWriteStreamRef writeStream = NULL;
@@ -540,12 +540,12 @@ static __strong NSData *CRLFCRLF;
     [_inputStream open];
 }
 
-- (void)close;
+- (void)close
 {
     [self closeWithCode:-1 reason:nil];
 }
 
-- (void)closeWithCode:(NSInteger)code reason:(NSString *)reason;
+- (void)closeWithCode:(NSInteger)code reason:(NSString *)reason
 {
     assert(code);
     if (self.readyState == SR_CLOSING || self.readyState == SR_CLOSED) {
@@ -589,7 +589,7 @@ static __strong NSData *CRLFCRLF;
     });
 }
 
-- (void)_closeWithProtocolError:(NSString *)message;
+- (void)_closeWithProtocolError:(NSString *)message
 {
     // Need to shunt this on the _callbackQueue first to see if they received any messages 
     dispatch_async(_callbackQueue, ^{
@@ -600,7 +600,7 @@ static __strong NSData *CRLFCRLF;
     });
 }
 
-- (void)_failWithError:(NSError *)error;
+- (void)_failWithError:(NSError *)error
 {
     dispatch_async(_workQueue, ^{
         if (self.readyState != SR_CLOSED) {
@@ -621,9 +621,9 @@ static __strong NSData *CRLFCRLF;
     });
 }
 
-- (void)_writeData:(NSData *)data;
+- (void)_writeData:(NSData *)data
 {    
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
 
     if (_closeWhenFinishedWriting) {
             return;
@@ -631,7 +631,8 @@ static __strong NSData *CRLFCRLF;
     [_outputBuffer appendData:data];
     [self _pumpWriting];
 }
-- (void)send:(id)data;
+
+- (void)send:(id)data
 {
     NSAssert(self.readyState != SR_CONNECTING, @"Invalid State: Cannot call send: until connection is open");
     // TODO: maybe not copy this for performance
@@ -649,7 +650,7 @@ static __strong NSData *CRLFCRLF;
     });
 }
 
-- (void)handlePing:(NSData *)pingData;
+- (void)handlePing:(NSData *)pingData
 {
     // Need to pingpong this off _callbackQueue first to make sure messages happen in order
     dispatch_async(_callbackQueue, ^{
@@ -659,7 +660,7 @@ static __strong NSData *CRLFCRLF;
     });
 }
 
-- (void)handlePong;
+- (void)handlePong
 {
     // NOOP
 }
@@ -707,7 +708,7 @@ static inline BOOL closeCodeIsValid(int closeCode) {
 //  encoded data with value /reason/, the interpretation of which is not
 //  defined by this specification.
 
-- (void)handleCloseWithData:(NSData *)data;
+- (void)handleCloseWithData:(NSData *)data
 {
     size_t dataSize = data.length;
     __block uint16_t closeCode = 0;
@@ -736,7 +737,7 @@ static inline BOOL closeCodeIsValid(int closeCode) {
         _closeCode = SRStatusNoStatusReceived;
     }
     
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
     
     if (self.readyState == SR_OPEN) {
         [self closeWithCode:1000 reason:nil];
@@ -746,15 +747,16 @@ static inline BOOL closeCodeIsValid(int closeCode) {
     });
 }
 
-- (void)_disconnect;
+- (void)_disconnect
 {
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
+
     SRFastLog(@"Trying to disconnect");
     _closeWhenFinishedWriting = YES;
     [self _pumpWriting];
 }
 
-- (void)_handleFrameWithData:(NSData *)frameData opCode:(NSInteger)opcode;
+- (void)_handleFrameWithData:(NSData *)frameData opCode:(NSInteger)opcode
 {                
     // Check that the current data is valid UTF8
     
@@ -800,7 +802,7 @@ static inline BOOL closeCodeIsValid(int closeCode) {
     }
 }
 
-- (void)_handleFrameHeader:(frame_header)frame_header curData:(NSData *)curData;
+- (void)_handleFrameHeader:(frame_header)frame_header curData:(NSData *)curData
 {
     assert(frame_header.opcode != 0);
     
@@ -883,7 +885,7 @@ static const uint8_t SRMaskMask         = 0x80;
 static const uint8_t SRPayloadLenMask   = 0x7F;
 
 
-- (void)_readFrameContinue;
+- (void)_readFrameContinue
 {
     assert((_currentFrameCount == 0 && _currentFrameOpcode == 0) || (_currentFrameCount > 0 && _currentFrameOpcode > 0));
 
@@ -967,7 +969,7 @@ static const uint8_t SRPayloadLenMask   = 0x7F;
     } readToCurrentFrame:NO unmaskBytes:NO];
 }
 
-- (void)_readFrameNew;
+- (void)_readFrameNew
 {
     dispatch_async(_workQueue, ^{
         [_currentFrameData setLength:0];
@@ -981,13 +983,13 @@ static const uint8_t SRPayloadLenMask   = 0x7F;
     });
 }
 
-- (void)_pumpWriting;
+- (void)_pumpWriting
 {
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
     
     NSUInteger dataLength = _outputBuffer.length;
     if (dataLength - _outputBufferOffset > 0 && _outputStream.hasSpaceAvailable) {
-        NSUInteger bytesWritten = [_outputStream write:_outputBuffer.bytes + _outputBufferOffset maxLength:dataLength - _outputBufferOffset];
+        NSInteger bytesWritten = [_outputStream write:_outputBuffer.bytes + _outputBufferOffset maxLength:dataLength - _outputBufferOffset];
         if (bytesWritten == -1) {
             [self _failWithError:[NSError errorWithDomain:@"org.lolrus.SocketRocket" code:2145 userInfo:[NSDictionary dictionaryWithObject:@"Error writing to stream" forKey:NSLocalizedDescriptionKey]]];
              return;
@@ -1023,24 +1025,26 @@ static const uint8_t SRPayloadLenMask   = 0x7F;
     }
 }
 
-- (void)_addConsumerWithScanner:(stream_scanner)consumer callback:(data_callback)callback;
+- (void)_addConsumerWithScanner:(stream_scanner)consumer callback:(data_callback)callback
 {
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
+
     [self _addConsumerWithScanner:consumer callback:callback dataLength:0];
 }
 
-- (void)_addConsumerWithDataLength:(size_t)dataLength callback:(data_callback)callback readToCurrentFrame:(BOOL)readToCurrentFrame unmaskBytes:(BOOL)unmaskBytes;
+- (void)_addConsumerWithDataLength:(size_t)dataLength callback:(data_callback)callback readToCurrentFrame:(BOOL)readToCurrentFrame unmaskBytes:(BOOL)unmaskBytes
 {   
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
     assert(dataLength);
     
     [_consumers addObject:[[SRIOConsumer alloc] initWithScanner:nil handler:callback bytesNeeded:dataLength readToCurrentFrame:readToCurrentFrame unmaskBytes:unmaskBytes]];
     [self _pumpScanner];
 }
 
-- (void)_addConsumerWithScanner:(stream_scanner)consumer callback:(data_callback)callback dataLength:(size_t)dataLength;
+- (void)_addConsumerWithScanner:(stream_scanner)consumer callback:(data_callback)callback dataLength:(size_t)dataLength
 {    
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
+
     [_consumers addObject:[[SRIOConsumer alloc] initWithScanner:consumer handler:callback bytesNeeded:dataLength readToCurrentFrame:NO unmaskBytes:NO]];
     [self _pumpScanner];
 }
@@ -1048,12 +1052,12 @@ static const uint8_t SRPayloadLenMask   = 0x7F;
 
 static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
 
-- (void)_readUntilHeaderCompleteWithCallback:(data_callback)dataHandler;
+- (void)_readUntilHeaderCompleteWithCallback:(data_callback)dataHandler
 {
     [self _readUntilBytes:CRLFCRLFBytes length:sizeof(CRLFCRLFBytes) callback:dataHandler];
 }
 
-- (void)_readUntilBytes:(const void *)bytes length:(size_t)length callback:(data_callback)dataHandler;
+- (void)_readUntilBytes:(const void *)bytes length:(size_t)length callback:(data_callback)dataHandler
 {
     // TODO optimize so this can continue from where we last searched
     stream_scanner consumer = ^size_t(NSData *data) {
@@ -1062,7 +1066,7 @@ static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
         
         size_t size = data.length;
         const unsigned char *buffer = data.bytes;
-        for (int i = 0; i < size; i++ ) {
+        for (size_t i = 0; i < size; i++ ) {
             if (((const unsigned char *)buffer)[i] == ((const unsigned char *)bytes)[match_count]) {
                 match_count += 1;
                 if (match_count == length) {
@@ -1131,7 +1135,7 @@ static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
             NSUInteger len = mutableSlice.length;
             uint8_t *bytes = mutableSlice.mutableBytes;
             
-            for (int i = 0; i < len; i++) {
+            for (NSUInteger i = 0; i < len; i++) {
                 bytes[i] = bytes[i] ^ _currentReadMaskKey[_currentReadMaskOffset % sizeof(_currentReadMaskKey)];
                 _currentReadMaskOffset += 1;
             }
@@ -1184,9 +1188,9 @@ static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
     return didWork;
 }
 
--(void)_pumpScanner;
+-(void)_pumpScanner
 {
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
     
     if (!_isPumping) {
         _isPumping = YES;
@@ -1205,9 +1209,9 @@ static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
 
 static const size_t SRFrameHeaderOverhead = 32;
 
-- (void)_sendFrameWithOpcode:(SROpCode)opcode data:(id)data;
+- (void)_sendFrameWithOpcode:(SROpCode)opcode data:(id)data
 {
-    assert(dispatch_get_current_queue() == _workQueue);
+    assert([NSThread isMainThread] == NO);
     
     NSAssert(data == nil || [data isKindOfClass:[NSData class]] || [data isKindOfClass:[NSString class]], @"Function expects nil, NSString or NSData");
     
@@ -1257,7 +1261,7 @@ static const size_t SRFrameHeaderOverhead = 32;
     }
         
     if (!useMask) {
-        for (int i = 0; i < payloadLength; i++) {
+        for (size_t i = 0; i < payloadLength; i++) {
             frame_buffer[frame_buffer_size] = unmasked_payload[i];
             frame_buffer_size += 1;
         }
@@ -1267,7 +1271,7 @@ static const size_t SRFrameHeaderOverhead = 32;
         frame_buffer_size += sizeof(uint32_t);
         
         // TODO: could probably optimize this with SIMD
-        for (int i = 0; i < payloadLength; i++) {
+        for (size_t i = 0; i < payloadLength; i++) {
             frame_buffer[frame_buffer_size] = unmasked_payload[i] ^ mask_key[i % sizeof(uint32_t)];
             frame_buffer_size += 1;
         }
@@ -1279,7 +1283,7 @@ static const size_t SRFrameHeaderOverhead = 32;
     [self _writeData:frame];
 }
 
-- (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode;
+- (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode
 {
     if (_secure && !_pinnedCertFound && (eventCode == NSStreamEventHasBytesAvailable || eventCode == NSStreamEventHasSpaceAvailable)) {
         
@@ -1415,7 +1419,7 @@ static const size_t SRFrameHeaderOverhead = 32;
 @synthesize readToCurrentFrame = _readToCurrentFrame;
 @synthesize unmaskBytes = _unmaskBytes;
 
-- (id)initWithScanner:(stream_scanner)scanner handler:(data_callback)handler bytesNeeded:(size_t)bytesNeeded readToCurrentFrame:(BOOL)readToCurrentFrame unmaskBytes:(BOOL)unmaskBytes;
+- (id)initWithScanner:(stream_scanner)scanner handler:(data_callback)handler bytesNeeded:(size_t)bytesNeeded readToCurrentFrame:(BOOL)readToCurrentFrame unmaskBytes:(BOOL)unmaskBytes
 {
     self = [super init];
     if (self) {
@@ -1434,7 +1438,7 @@ static const size_t SRFrameHeaderOverhead = 32;
 
 @implementation  NSURLRequest (CertificateAdditions)
 
-- (NSArray *)SR_SSLPinnedCertificates;
+- (NSArray *)SR_SSLPinnedCertificates
 {
     return [NSURLProtocol propertyForKey:@"SR_SSLPinnedCertificates" inRequest:self];
 }
@@ -1443,12 +1447,12 @@ static const size_t SRFrameHeaderOverhead = 32;
 
 @implementation  NSMutableURLRequest (CertificateAdditions)
 
-- (NSArray *)SR_SSLPinnedCertificates;
+- (NSArray *)SR_SSLPinnedCertificates
 {
     return [NSURLProtocol propertyForKey:@"SR_SSLPinnedCertificates" inRequest:self];
 }
 
-- (void)setSR_SSLPinnedCertificates:(NSArray *)SR_SSLPinnedCertificates;
+- (void)setSR_SSLPinnedCertificates:(NSArray *)SR_SSLPinnedCertificates
 {
     [NSURLProtocol setProperty:SR_SSLPinnedCertificates forKey:@"SR_SSLPinnedCertificates" inRequest:self];
 }
@@ -1457,7 +1461,7 @@ static const size_t SRFrameHeaderOverhead = 32;
 
 @implementation NSURL (SRWebSocket)
 
-- (NSString *)SR_origin;
+- (NSString *)SR_origin
 {
     NSString *scheme = [self.scheme lowercaseString];
         
