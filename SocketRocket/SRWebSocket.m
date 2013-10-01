@@ -44,8 +44,6 @@
 
 #import <CommonCrypto/CommonDigest.h>
 #import <Security/SecRandom.h>
-#import "base64.h"
-#import "NSData+SRB64Additions.h"
 
 typedef enum  {
     SROpCodeTextFrame = 0x1,
@@ -86,6 +84,13 @@ static inline int32_t validate_dispatch_data_partial_string(NSData *data);
 static inline dispatch_queue_t log_queue();
 static inline void SRFastLog(NSString *format, ...);
 
+
+#define Assert(Cond) if (!(Cond)) abort()
+
+static const char Base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static const char Pad64 = '=';
+
+
 @interface NSData (SRWebSocket)
 
 - (NSString *)stringBySHA1ThenBase64Encoding;
@@ -108,21 +113,86 @@ static inline void SRFastLog(NSString *format, ...);
 
 @end
 
+size_t b64_ntop(uint8_t const *src, size_t srclength, char *target, size_t targsize);
 
-static NSString *newSHA1String(const char *bytes, size_t length) {
+size_t b64_ntop(uint8_t const *src, size_t srclength, char *target, size_t targsize) {
+	size_t datalength = 0;
+	uint8_t input[3];
+	uint8_t output[4];
+	size_t i;
+
+	while (2 < srclength) {
+		input[0] = *src++;
+		input[1] = *src++;
+		input[2] = *src++;
+		srclength -= 3;
+
+		output[0] = input[0] >> 2;
+		output[1] = ((input[0] & 0x03) << 4) + (input[1] >> 4);
+		output[2] = ((input[1] & 0x0f) << 2) + (input[2] >> 6);
+		output[3] = input[2] & 0x3f;
+		Assert(output[0] < 64);
+		Assert(output[1] < 64);
+		Assert(output[2] < 64);
+		Assert(output[3] < 64);
+
+		if (datalength + 4 > targsize)
+			return (-1);
+		target[datalength++] = Base64[output[0]];
+		target[datalength++] = Base64[output[1]];
+		target[datalength++] = Base64[output[2]];
+		target[datalength++] = Base64[output[3]];
+	}
+
+	/* Now we worry about padding. */
+	if (0 != srclength) {
+		/* Get what's left. */
+		input[0] = input[1] = input[2] = '\0';
+		for (i = 0; i < srclength; i++)
+			input[i] = *src++;
+		output[0] = input[0] >> 2;
+		output[1] = ((input[0] & 0x03) << 4) + (input[1] >> 4);
+		output[2] = ((input[1] & 0x0f) << 2) + (input[2] >> 6);
+		Assert(output[0] < 64);
+		Assert(output[1] < 64);
+		Assert(output[2] < 64);
+
+		if (datalength + 4 > targsize)
+			return (-1);
+		target[datalength++] = Base64[output[0]];
+		target[datalength++] = Base64[output[1]];
+		if (srclength == 1)
+			target[datalength++] = Pad64;
+		else
+			target[datalength++] = Base64[output[2]];
+		target[datalength++] = Pad64;
+	}
+	if (datalength >= targsize)
+		return (-1);
+	target[datalength] = '\0'; /* Returned value doesn't count \0. */
+	return (datalength);
+}
+
+
+static NSString *newSHA1String(const char *bytes, NSUInteger length) {
     uint8_t md[CC_SHA1_DIGEST_LENGTH];
     
-    CC_SHA1(bytes, length, md);
+    CC_SHA1(bytes, (unsigned int)length, md);
     
     size_t buffer_size = ((sizeof(md) * 3 + 2) / 2);
     
     char *buffer =  (char *)malloc(buffer_size);
     
-    int len = b64_ntop(md, CC_SHA1_DIGEST_LENGTH, buffer, buffer_size);
-    if (len == -1) {
+    size_t len = b64_ntop(md, CC_SHA1_DIGEST_LENGTH, buffer, buffer_size);
+    size_t minus = -1;
+
+    if (len == minus)
+    {
         free(buffer);
         return nil;
-    } else{
+    }
+    else
+    {
         return [[NSString alloc] initWithBytesNoCopy:buffer length:len encoding:NSASCIIStringEncoding freeWhenDone:YES];
     }
 }
@@ -199,7 +269,7 @@ typedef void (^data_callback)(SRWebSocket *webSocket,  NSData *data);
 - (BOOL)_checkHandshake:(CFHTTPMessageRef)httpMessage;
 - (void)_SR_commonInit;
 
-- (void)_connectToHost:(NSString *)host port:(NSInteger)port;
+- (void)_connectToHost:(NSString *)host port:(UInt32)port;
 
 @property (nonatomic) SRReadyState readyState;
 
@@ -207,7 +277,7 @@ typedef void (^data_callback)(SRWebSocket *webSocket,  NSData *data);
 
 
 @implementation SRWebSocket {
-    NSInteger _webSocketVersion;
+    NSUInteger _webSocketVersion;
     dispatch_queue_t _callbackQueue;
     dispatch_queue_t _workQueue;
     NSMutableArray *_consumers;
@@ -375,7 +445,7 @@ static __strong NSData *CRLFCRLF;
 
     _selfRetain = self;
     
-    NSInteger port = _url.port.integerValue;
+    UInt32 port = (UInt32) _url.port.unsignedIntegerValue;
     if (port == 0) {
         if (!_secure) {
             port = 80;
@@ -405,11 +475,11 @@ static __strong NSData *CRLFCRLF;
 
 - (void)_HTTPHeadersDidFinish
 {
-    NSInteger responseCode = CFHTTPMessageGetResponseStatusCode(_receivedHTTPHeaders);
+    NSUInteger responseCode = CFHTTPMessageGetResponseStatusCode(_receivedHTTPHeaders);
     
     if (responseCode >= 400) {
         SRFastLog(@"Request failed with response code %d", responseCode);
-        [self _failWithError:[NSError errorWithDomain:@"org.lolrus.SocketRocket" code:2132 userInfo:[NSDictionary dictionaryWithObject:[NSString stringWithFormat:@"received bad response code from server %d", responseCode] forKey:NSLocalizedDescriptionKey]]];
+        [self _failWithError:[NSError errorWithDomain:@"org.lolrus.SocketRocket" code:2132 userInfo:[NSDictionary dictionaryWithObject:[NSString stringWithFormat:@"received bad response code from server %ld", (long)responseCode] forKey:NSLocalizedDescriptionKey]]];
         return;
 
     }
@@ -472,13 +542,13 @@ static __strong NSData *CRLFCRLF;
         
     NSMutableData *keyBytes = [[NSMutableData alloc] initWithLength:16];
     SecRandomCopyBytes(kSecRandomDefault, keyBytes.length, keyBytes.mutableBytes);
-    _secKey = [keyBytes SR_stringByBase64Encoding];
+    _secKey = [keyBytes base64EncodedStringWithOptions:0];
     assert([_secKey length] == 24);
     
     CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Upgrade"), CFSTR("websocket"));
     CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Connection"), CFSTR("Upgrade"));
     CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Sec-WebSocket-Key"), (__bridge CFStringRef)_secKey);
-    CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Sec-WebSocket-Version"), (__bridge CFStringRef)[NSString stringWithFormat:@"%d", _webSocketVersion]);
+    CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Sec-WebSocket-Version"), (__bridge CFStringRef)[NSString stringWithFormat:@"%lu", (unsigned long)_webSocketVersion]);
     
     CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Origin"), (__bridge CFStringRef)_url.SR_origin);
     
@@ -498,7 +568,7 @@ static __strong NSData *CRLFCRLF;
     [self _readHTTPHeader];
 }
 
-- (void)_connectToHost:(NSString *)host port:(NSInteger)port
+- (void)_connectToHost:(NSString *)host port:(UInt32)port
 {    
     CFReadStreamRef readStream = NULL;
     CFWriteStreamRef writeStream = NULL;
@@ -796,7 +866,7 @@ static inline BOOL closeCodeIsValid(int closeCode) {
             [self handlePong];
             break;
         default:
-            [self _closeWithProtocolError:[NSString stringWithFormat:@"Unknown opcode %d", opcode]];
+            [self _closeWithProtocolError:[NSString stringWithFormat:@"Unknown opcode %ld", (long)opcode]];
             // TODO: Handle invalid opcode
             break;
     }
@@ -1374,11 +1444,11 @@ static const size_t SRFrameHeaderOverhead = 32;
                 
             case NSStreamEventHasBytesAvailable: {
                 SRFastLog(@"NSStreamEventHasBytesAvailable %@", aStream);
-                const int bufferSize = 2048;
+                const NSUInteger bufferSize = 2048;
                 uint8_t buffer[bufferSize];
                 
                 while (_inputStream.hasBytesAvailable) {
-                    int bytes_read = [_inputStream read:buffer maxLength:bufferSize];
+                    NSInteger bytes_read = [_inputStream read:buffer maxLength:bufferSize];
                     
                     if (bytes_read > 0) {
                         [_readBuffer appendBytes:buffer length:bytes_read];
@@ -1512,7 +1582,7 @@ static inline void SRFastLog(NSString *format, ...)  {
 static inline int32_t validate_dispatch_data_partial_string(NSData *data) {
     
     const void * contents = [data bytes];
-    long size = [data length];
+    int32_t size = (int32_t) [data length];
     
     const uint8_t *str = (const uint8_t *)contents;
     
