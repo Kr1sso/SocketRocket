@@ -352,6 +352,8 @@ static __strong NSData *CRLFCRLF;
         CFRelease(_receivedHTTPHeaders);
         _receivedHTTPHeaders = NULL;
     }
+
+    _selfRetain = nil;
 }
 
 #ifndef NDEBUG
