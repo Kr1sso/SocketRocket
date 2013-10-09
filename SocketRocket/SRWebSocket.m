@@ -380,7 +380,7 @@ static __strong NSData *CRLFCRLF;
 }
 
 
-- (NSString *)SR_stringByBase64EncodingForData:(NSData *)data
+- (NSString *)SR_stringByBase64EncodingForData:(NSMutableData *)data
 {
     size_t buffer_size = (([data length] * 3 + 2) / 2);
 
@@ -569,7 +569,7 @@ static __strong NSData *CRLFCRLF;
 
 #if !(TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR)
 
-    _secKey = [keyBytes SR_stringByBase64Encoding];
+    _secKey = [self SR_stringByBase64EncodingForData:keyBytes];
 
 #else
 
