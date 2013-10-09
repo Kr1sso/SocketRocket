@@ -379,6 +379,30 @@ static __strong NSData *CRLFCRLF;
     return [self initWithURLRequest:request protocols:protocols];
 }
 
+
+- (NSString *)SR_stringByBase64EncodingForData:(NSData *)data
+{
+    size_t buffer_size = (([data length] * 3 + 2) / 2);
+
+    char *buffer = (char *)malloc(buffer_size);
+
+    int len = (int) b64_ntop([data bytes], [data length], buffer, buffer_size);
+
+    if (len == -1)
+    {
+        free(buffer);
+        return nil;
+    }
+    else
+    {
+        return [[NSString alloc] initWithBytesNoCopy:buffer
+                                              length:len
+                                            encoding:NSUTF8StringEncoding
+                                        freeWhenDone:YES];
+    }
+}
+
+
 - (void)_SR_commonInit
 {
     _readyState = SR_CONNECTING;
@@ -431,7 +455,7 @@ static __strong NSData *CRLFCRLF;
 - (void)setReadyState:(SRReadyState)aReadyState
 {
     [self willChangeValueForKey:@"readyState"];
-    assert(aReadyState > _readyState);
+//    assert(aReadyState > _readyState);
     _readyState = aReadyState;
     [self didChangeValueForKey:@"readyState"];
 }
@@ -542,7 +566,17 @@ static __strong NSData *CRLFCRLF;
         
     NSMutableData *keyBytes = [[NSMutableData alloc] initWithLength:16];
     SecRandomCopyBytes(kSecRandomDefault, keyBytes.length, keyBytes.mutableBytes);
+
+#if !(TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR)
+
+    _secKey = [keyBytes SR_stringByBase64Encoding];
+
+#else
+
     _secKey = [keyBytes base64EncodedStringWithOptions:0];
+
+#endif
+
     assert([_secKey length] == 24);
     
     CFHTTPMessageSetHeaderFieldValue(request, CFSTR("Upgrade"), CFSTR("websocket"));
