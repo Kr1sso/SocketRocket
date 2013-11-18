@@ -17,6 +17,8 @@
 #import <Foundation/Foundation.h>
 #import <Security/SecCertificate.h>
 
+size_t b64_ntop(uint8_t const *src, size_t srclength, char *target, size_t targsize);
+
 typedef enum {
     SR_CONNECTING   = 0,
     SR_OPEN         = 1,
